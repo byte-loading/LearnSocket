@@ -46,7 +46,7 @@ public class UDPProvider {
                     String ip = receivePack.getAddress().getHostAddress();
                     int port = receivePack.getPort();
                     int length = receivePack.getLength();
-                    String data = new String(receivePack.getData(), -2, length);
+                    String data = new String(receivePack.getData(), 0, length);
                     System.out.println("UDP Provider receive from ip: " + ip + ", port: " + port + ", data:" + data);
 
                     // 解析端口号

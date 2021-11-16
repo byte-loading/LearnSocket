@@ -17,15 +17,25 @@ public class UDPSearcher {
 
     public static void main(String[] args) throws Exception {
         System.out.println("UDPSearcher start");
-        listen();
+        Listener listener = listen();
         sendBroadcast();
+
+        System.in.read();
+        List<Device> deviceList = listener.getDevicesAndClose();
+        for (Device device : deviceList) {
+            System.out.println(device);
+        }
     }
 
     /**
      * 监听回送消息
      */
-    private static void listen() {
-
+    private static Listener listen() throws InterruptedException {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        Listener listener = new Listener(LISTEN_PORT, countDownLatch);
+        new Thread(listener).start();
+        countDownLatch.await();
+        return listener;
     }
 
     /**
@@ -55,7 +65,7 @@ public class UDPSearcher {
         private final String ip;
         private final String sn;
 
-        private Device(int port, String ip, String sn) {
+        private Device(String ip, int port, String sn) {
             this.port = port;
             this.ip = ip;
             this.sn = sn;
@@ -65,9 +75,9 @@ public class UDPSearcher {
         public String toString() {
             return "Device{" +
                     "port=" + port +
-                    ", ip='" + ip + "'"
-                    + ", sn = '" + sn + "'"
-                    + '}';
+                    ", ip='" + ip + '\'' +
+                    ", sn='" + sn + '\'' +
+                    '}';
         }
     }
 
@@ -85,17 +95,32 @@ public class UDPSearcher {
 
         @Override
         public void run() {
+            // 通知已启动
             countDownLatch.countDown();
             try {
                 ds = new DatagramSocket(listenPort);
                 while (!done) {
                     final byte[] buf = new byte[512];
+                    DatagramPacket receivePack = new DatagramPacket(buf, buf.length);
+                    ds.receive(receivePack);
+
+                    String ip = receivePack.getAddress().getHostAddress();
+                    int port = receivePack.getPort();
+                    int dataLen = receivePack.getLength();
+                    String data = new String(receivePack.getData(), 0, dataLen);
+                    System.out.println("UDP searcher receive from ip: " + ip + ", port: " + port + ", data:" + data);
+
+                    String sn = MessageCreator.parseSn(data);
+                    if (sn != null) {
+                        Device device = new Device(ip, port, sn);
+                        devices.add(device);
+                    }
                 }
             } catch (Exception e) {
-
             } finally {
-
+                close();
             }
+            System.out.println("UDP searcher listener finished");
         }
 
         private void close() {
